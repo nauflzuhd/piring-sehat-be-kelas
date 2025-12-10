@@ -13,6 +13,14 @@ import { supabase } from '../supabaseClient.js'
  * @param {number} [limit=5] - Batas maksimal jumlah hasil yang dikembalikan.
  * @returns {Promise<object[]>} Promise yang berisi array baris makanan dari tabel `makanan`.
  * @throws {Error} Melempar error dari Supabase jika query gagal.
+ *
+ * PostgreSQL (kira-kira ekuivalen):
+ * ```sql
+ * SELECT *
+ * FROM makanan
+ * WHERE name ILIKE '%' || $1 || '%'
+ * LIMIT $2;
+ * ```
  */
 export async function searchFoodsByName(query, limit = 5) {
   const normalized = (query || '').trim()
@@ -53,6 +61,13 @@ export async function getFirstFoodByName(query) {
  * @param {number} [limit=10] - Batas maksimal jumlah makanan yang diambil.
  * @returns {Promise<object[]>} Promise yang berisi array makanan, atau array kosong jika tidak ada.
  * @throws {Error} Melempar error dari Supabase jika query gagal.
+ *
+ * PostgreSQL (kira-kira ekuivalen):
+ * ```sql
+ * SELECT *
+ * FROM makanan
+ * LIMIT $1;
+ * ```
  */
 export async function getAllFoods(limit = 10) {
   const { data, error } = await supabase

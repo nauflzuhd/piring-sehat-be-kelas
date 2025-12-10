@@ -21,10 +21,10 @@ import { getAuth } from 'firebase-admin/auth'
 // Pastikan .env root ter-load (sama seperti supabaseClient)
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-// Di backend, file .env berada di folder yang sama dengan file ini
-const backendEnvPath = path.resolve(__dirname, '.env')
+// Di backend terpisah ini, file .env berada di root project yang sama dengan file ini
+const rootEnvPath = path.resolve(__dirname, '.env')
 
-dotenv.config({ path: backendEnvPath })
+dotenv.config({ path: rootEnvPath })
 
 if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
   console.warn('[firebaseAdmin] FIREBASE_* env vars belum lengkap, verifikasi token tidak akan berjalan.')

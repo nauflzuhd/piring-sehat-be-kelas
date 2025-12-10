@@ -1,4 +1,5 @@
 import { adminAuth } from '../firebaseAdmin.js'
+import { supabase } from '../supabaseClient.js'
 
 /**
  * Middleware Express untuk memverifikasi Firebase ID token pada header Authorization.
@@ -15,6 +16,14 @@ import { adminAuth } from '../firebaseAdmin.js'
  * @param {import('express').Response} res - Objek response Express.
  * @param {import('express').NextFunction} next - Fungsi untuk melanjutkan ke middleware/handler berikutnya.
  * @returns {Promise<void>} Promise yang selesai ketika middleware meneruskan request atau mengembalikan respons error.
+ *
+ * Query ke Supabase di middleware ini secara garis besar ekuivalen dengan PostgreSQL berikut:
+ * ```sql
+ * SELECT id, role
+ * FROM users
+ * WHERE firebase_uid = $1
+ * LIMIT 1;
+ * ```
  */
 export async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || ''
@@ -27,6 +36,26 @@ export async function requireAuth(req, res, next) {
   try {
     const decoded = await adminAuth.verifyIdToken(token)
     req.firebaseUser = decoded
+
+    // Ambil supabaseUserId dan role dari database berdasarkan firebase_uid
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, role')
+      .eq('firebase_uid', decoded.uid)
+      .single()
+
+    if (error || !data) {
+      console.error('Error getting user from Supabase:', error)
+      return res.status(401).json({ error: 'User tidak ditemukan di database' })
+    }
+
+    // Set req.user dengan supabaseUserId dan role
+    req.user = {
+      firebaseUid: decoded.uid,
+      supabaseUserId: data.id,
+      role: data.role,
+    }
+
     next()
   } catch (error) {
     console.error('Error verifyIdToken:', error)

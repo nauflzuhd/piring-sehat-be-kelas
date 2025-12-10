@@ -1,7 +1,40 @@
 import express from 'express'
-import { getUserDailyCalorieTarget, updateUserDailyCalorieTarget } from '../services/usersService.js'
+import { getUserDailyCalorieTarget, updateUserDailyCalorieTarget, getUserProfileById } from '../services/usersService.js'
 
 const router = express.Router()
+
+// GET /api/users/me
+/**
+ * Mengembalikan profil user (id, email, username, role) berdasarkan req.user.supabaseUserId.
+ *
+ * Route: `GET /api/users/me`
+ *
+ * Perilaku:
+ * - Mengembalikan HTTP 401 jika user tidak terautentikasi.
+ * - Jika sukses, mengembalikan JSON `{ id, email, username, role }` di mana `id`, `email`, `username`, dan `role` adalah profil user yang terkait dengan req.user.supabaseUserId.
+ * - Jika terjadi error, mengembalikan HTTP 500 dengan pesan kesalahan umum.
+ *
+ * @name GET/api/users/me
+ * @function
+ * @param {import('express').Request} req - Objek request Express dengan req.user.supabaseUserId.
+ * @param {import('express').Response} res - Objek response Express untuk mengirim profil user.
+ * @returns {Promise<void>} Promise yang selesai ketika respons sudah dikirim.
+ */
+router.get('/me', async (req, res) => {
+  const userId = req.user?.supabaseUserId
+
+  if (!userId) {
+    return res.status(401).json({ error: 'User tidak terautentikasi' })
+  }
+
+  try {
+    const profile = await getUserProfileById(userId)
+    res.json(profile)
+  } catch (error) {
+    console.error('Error getUserProfileById:', error)
+    res.status(500).json({ error: 'Gagal mengambil profil user' })
+  }
+})
 
 // GET /api/users/:id/daily-target
 /**

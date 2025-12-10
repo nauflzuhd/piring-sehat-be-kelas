@@ -10,6 +10,15 @@ import { supabase } from '../supabaseClient.js'
  * @param {string} date - Tanggal dalam format `YYYY-MM-DD`.
  * @returns {Promise<object[]>} Promise yang berisi array catatan makanan, atau array kosong jika tidak ada.
  * @throws {Error} Melempar error dari Supabase jika query gagal.
+ *
+ * PostgreSQL (kira-kira ekuivalen):
+ * ```sql
+ * SELECT *
+ * FROM food_logs
+ * WHERE user_id = $1
+ *   AND date = $2
+ * ORDER BY logged_at ASC;
+ * ```
  */
 export async function getFoodLogsByDate(userId, date) {
   const { data, error } = await supabase
@@ -37,6 +46,13 @@ export async function getFoodLogsByDate(userId, date) {
  * @param {?number} [params.foodId=null] - ID referensi ke tabel `makanan` jika tersedia.
  * @returns {Promise<object>} Promise yang berisi satu baris catatan makanan yang baru dibuat.
  * @throws {Error} Melempar error dari Supabase jika proses insert gagal.
+ *
+ * PostgreSQL (kira-kira ekuivalen):
+ * ```sql
+ * INSERT INTO food_logs (user_id, date, food_name_custom, calories, food_id)
+ * VALUES ($1, $2, $3, $4, $5)
+ * RETURNING *;
+ * ```
  */
 export async function addFoodLog({ userId, date, foodName, calories, foodId = null }) {
   const { data, error } = await supabase
@@ -64,6 +80,12 @@ export async function addFoodLog({ userId, date, foodName, calories, foodId = nu
  * @param {number} id - ID catatan makanan yang akan dihapus.
  * @returns {Promise<void>} Promise yang selesai ketika penghapusan berhasil.
  * @throws {Error} Melempar error dari Supabase jika proses delete gagal.
+ *
+ * PostgreSQL (kira-kira ekuivalen):
+ * ```sql
+ * DELETE FROM food_logs
+ * WHERE id = $1;
+ * ```
  */
 export async function deleteFoodLog(id) {
   const { error } = await supabase
@@ -85,6 +107,24 @@ export async function deleteFoodLog(id) {
  * @param {string} endDate - Tanggal akhir rentang dalam format `YYYY-MM-DD`.
  * @returns {Promise<number>} Promise yang berisi total kalori (number), 0 jika tidak ada data.
  * @throws {Error} Melempar error dari Supabase jika query gagal.
+ *
+ * PostgreSQL (kira-kira ekuivalen pengambilan datanya):
+ * ```sql
+ * SELECT calories
+ * FROM food_logs
+ * WHERE user_id = $1
+ *   AND date >= $2
+ *   AND date <= $3;
+ * ```
+ *
+ * Agregasi total kalori dilakukan di JavaScript dengan reduce, ekuivalen dengan:
+ * ```sql
+ * SELECT COALESCE(SUM(calories), 0) AS total
+ * FROM food_logs
+ * WHERE user_id = $1
+ *   AND date >= $2
+ *   AND date <= $3;
+ * ```
  */
 export async function getTotalCaloriesInRange(userId, startDate, endDate) {
   const { data, error } = await supabase
@@ -112,38 +152,60 @@ export async function getTotalCaloriesInRange(userId, startDate, endDate) {
  * @param {string} userId - ID pengguna.
  * @param {string} date - Tanggal dalam format `YYYY-MM-DD`.
  * @returns {Promise<{protein: number, carbs: number, fat: number}>} Promise yang berisi objek ringkasan nutrisi.
+ *
+ * PostgreSQL (kira-kira ekuivalen query dasarnya):
+ * ```sql
+ * SELECT
+ *   fl.calories,
+ *   m.proteins,
+ *   m.fat,
+ *   m.carbohydrate
+ * FROM food_logs AS fl
+ * JOIN makanan AS m ON fl.food_id = m.id
+ * WHERE fl.user_id = $1
+ *   AND fl.date = $2;
+ * ```
+ *
+ * Agregasi protein, karbohidrat, dan lemak dilakukan di JavaScript dengan loop,
+ * ekuivalen kira-kira dengan:
+ * ```sql
+ * SELECT
+ *   COALESCE(SUM(m.proteins), 0)     AS protein,
+ *   COALESCE(SUM(m.carbohydrate), 0) AS carbs,
+ *   COALESCE(SUM(m.fat), 0)          AS fat
+ * FROM food_logs AS fl
+ * JOIN makanan AS m ON fl.food_id = m.id
+ * WHERE fl.user_id = $1
+ *   AND fl.date = $2;
+ * ```
  */
 export async function getDailyNutritionSummary(userId, date) {
   try {
     const { data, error } = await supabase
-      .from('food_logs')
-      // Sesuaikan field nutrisi dengan kolom di tabel `makanan`.
-      // Kolom: proteins, fat, carbohydrate
-      .select('calories, makanan!inner(proteins, fat, carbohydrate)')
-      .eq('user_id', userId)
-      .eq('date', date)
+      .rpc('get_daily_nutrition', {
+        p_user_id: userId,
+        p_date: date,
+      })
 
     if (error) {
-      console.error('Supabase error getDailyNutritionSummary:', error)
+      console.error('Supabase error getDailyNutritionSummary (rpc):', error)
       return { protein: 0, carbs: 0, fat: 0 }
     }
 
-    let protein = 0
-    let carbs = 0
-    let fat = 0
-
-    for (const row of data || []) {
-      const food = row.makanan
-      if (!food) continue
-      // gunakan `proteins` dan `carbohydrate` sesuai nama kolom di tabel makanan
-      protein += Number(food.proteins || 0)
-      carbs += Number(food.carbohydrate || 0)
-      fat += Number(food.fat || 0)
+    // Fungsi get_daily_nutrition mengembalikan satu baris
+    const row = Array.isArray(data) ? data[0] : data
+    if (!row) {
+      return { protein: 0, carbs: 0, fat: 0 }
     }
 
-    return { protein, carbs, fat }
+    return {
+      protein: Number(row.total_protein || 0),
+      carbs: Number(row.total_carbs || 0),
+      fat: Number(row.total_fat || 0),
+      // total_calories tersedia sebagai row.total_calories jika ingin dipakai nanti
+    }
   } catch (err) {
-    console.error('Unexpected error getDailyNutritionSummary:', err)
+    console.error('Unexpected error getDailyNutritionSummary (rpc):', err)
     return { protein: 0, carbs: 0, fat: 0 }
   }
 }
