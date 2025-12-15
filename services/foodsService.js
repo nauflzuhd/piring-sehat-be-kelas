@@ -38,6 +38,56 @@ export async function searchFoodsByName(query, limit = 5) {
   return data || []
 }
 
+/**
+ * Membuat entri makanan baru di tabel `makanan`.
+ *
+ * @param {Object} payload
+ * @param {string} payload.name - Nama makanan.
+ * @param {number} payload.calories - Kalori (kkal).
+ * @param {number} [payload.proteins] - Protein (gram).
+ * @param {number} [payload.carbohydrate] - Karbohidrat (gram).
+ * @param {number} [payload.fat] - Lemak (gram).
+ * @param {string} [payload.image_url] - URL gambar makanan (akan disimpan ke kolom `image`).
+ * @returns {Promise<object>} Satu baris makanan yang baru dibuat.
+ */
+export async function createFood({
+  name,
+  calories,
+  proteins = null,
+  carbohydrate = null,
+  fat = null,
+  image_url = null,
+}) {
+  // Ambil id terbesar saat ini untuk membuat id baru secara manual (karena kolom id NOT NULL dan tidak memiliki default).
+  const { data: lastIdRows, error: lastIdError } = await supabase
+    .from('makanan')
+    .select('id')
+    .order('id', { ascending: false })
+    .limit(1)
+
+  if (lastIdError) throw lastIdError
+
+  const lastId = Array.isArray(lastIdRows) && lastIdRows.length > 0 ? Number(lastIdRows[0].id) || 0 : 0
+  const newId = lastId + 1
+
+  const { data, error } = await supabase
+    .from('makanan')
+    .insert({
+      id: newId,
+      name,
+      calories,
+      proteins,
+      carbohydrate,
+      fat,
+      image: image_url || null,
+    })
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data
+}
+
 // Ambil satu makanan dengan nama paling cocok (first match)
 /**
  * Mengambil satu entri makanan pertama yang paling cocok dengan query.

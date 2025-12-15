@@ -1,5 +1,5 @@
 import express from 'express'
-import { searchFoodsByName, getFirstFoodByName, getAllFoods } from '../services/foodsService.js'
+import { searchFoodsByName, getFirstFoodByName, getAllFoods, createFood } from '../services/foodsService.js'
 
 const router = express.Router()
 
@@ -103,6 +103,41 @@ router.get('/all', async (req, res) => {
   } catch (error) {
     console.error('Error getAllFoods:', error)
     res.status(500).json({ error: 'Gagal mengambil data makanan', details: error.message })
+  }
+})
+
+// POST /api/foods
+/**
+ * Menambahkan makanan baru ke tabel `makanan`.
+ *
+ * Body JSON:
+ * - `name` (string, wajib)
+ * - `calories` (number, wajib)
+ * - `proteins` (number, opsional)
+ * - `carbohydrate` (number, opsional)
+ * - `fat` (number, opsional)
+ * - `image_url` (string, opsional)
+ */
+router.post('/', async (req, res) => {
+  const { name, calories, proteins, carbohydrate, fat, image_url } = req.body
+
+  if (!name || calories == null) {
+    return res.status(400).json({ error: 'name dan calories wajib diisi' })
+  }
+
+  try {
+    const created = await createFood({
+      name,
+      calories,
+      proteins,
+      carbohydrate,
+      fat,
+      image_url,
+    })
+    res.status(201).json({ data: created })
+  } catch (error) {
+    console.error('Error createFood:', error)
+    res.status(500).json({ error: 'Gagal menambah makanan baru' })
   }
 })
 
