@@ -120,11 +120,38 @@ export async function getFirstFoodByName(query) {
  * ```
  */
 export async function getAllFoods(limit = 10) {
-  const { data, error } = await supabase
-    .from('makanan')
-    .select('*')
-    .limit(limit)
+  // Supabase memiliki batas default ~1000 baris per query.
+  // Untuk mengambil lebih banyak data (mis: 10.000), kita ambil bertahap per batch.
 
-  if (error) throw error
-  return data || []
+  const batchSize = 1000
+  const maxTotal = limit
+  let allData = []
+  let offset = 0
+
+  while (allData.length < maxTotal) {
+    const from = offset
+    const to = offset + batchSize - 1
+
+    const { data, error } = await supabase
+      .from('makanan')
+      .select('*')
+      .order('name', { ascending: true })
+      .range(from, to)
+
+    if (error) throw error
+
+    if (!data || data.length === 0) {
+      break
+    }
+
+    allData = allData.concat(data)
+
+    if (data.length < batchSize) {
+      break
+    }
+
+    offset += batchSize
+  }
+
+  return allData.slice(0, maxTotal)
 }
